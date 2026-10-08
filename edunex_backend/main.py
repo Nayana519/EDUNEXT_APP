@@ -1,12 +1,13 @@
-import psycopg2
-from dotenv import load_dotenv
-import os
+from fastapi import FastAPI
+# Pull the specific routers
+from app.routers import subjects, feed 
 
-# Load environment variables from .env
-load_dotenv()
+app = FastAPI(title="EduNex Backend")
 
-# Fetch variables
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Include the routing logic trees
+app.include_router(subjects.router)
+app.include_router(feed.router)
 
-# Connect to the database
-connection = psycopg2.connect(DATABASE_URL)
+@app.get("/")
+def read_root():
+    return {"status": "EduNex Core System API Operational"}

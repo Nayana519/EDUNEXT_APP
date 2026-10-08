@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart'; // 1. Added import for Google Sign-In
+import 'package:google_sign_in/google_sign_in.dart'; 
 import 'home_screen.dart';
-import 'signup_screen.dart'; // Make sure this file exists in your project
+import 'signup_screen.dart'; 
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,7 +17,6 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
   bool _isLoading = false;
 
-  // 2. AUTO-REDIRECT GUARD: Checks if a user session is active on layout load
   @override
   void initState() {
     super.initState();
@@ -34,7 +33,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Handle Standard Email & Password Login
   Future<void> _handleLogin() async {
     setState(() {
       _isLoading = true;
@@ -48,14 +46,17 @@ class _LoginScreenState extends State<LoginScreen> {
       final token = await credential.user?.getIdToken();
       debugPrint('Logged in! Token: $token'); 
 
-      // TODO: send `token` to your FastAPI backend to fetch this user's profile
+      // ⬇️ UPDATE YOUR NAVIGATION LINKS INSIDE LOGIN_SCREEN WITH THIS PATH ROUTE ⬇️
+    if (mounted && userCredential.user != null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          // Swap out const HomeScreen() and pass the active role attribute parameters securely
+          builder: (context) => const DashboardScreen(role: 'teacher'), // Use 'student' or 'teacher' dynamically
+        ),
+      );
+    }
 
-      if (mounted && credential.user != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      }
 
     } on FirebaseAuthException catch (e) {
       setState(() {
@@ -66,53 +67,63 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // 3. GOOGLE SIGN-IN HANDLER: Triggered when the user clicks the Google button
+  // 👑 FIXED GOOGLE SIGN-IN METHOD MATCHING V7.0.0+ SINGLETON SURFACE
+    // 👑 100% Correct Google Sign-In Flow for google_sign_in 7.2.0+
+
   Future<void> _handleGoogleSignIn() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
+
     try {
-      // Trigger the Google interactive overlay popup window
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final googleSignIn = GoogleSignIn.instance;
 
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return; // User cancelled the popup overlay window context
-      }
+      // Google Sign-In v7 requires initialization
+      await googleSignIn.initialize();
 
-      // Obtain authorization authentication tokens from the request payload
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      // Start Google sign-in
+      final GoogleSignInAccount googleUser =
+          await googleSignIn.authenticate();
 
-      // Create a clean credential packet for Firebase
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
+      // Get Google authentication information
+      final GoogleSignInAuthentication googleAuth =
+          googleUser.authentication;
+
+      // Create Firebase credential using Google ID token
+      final OAuthCredential credential =
+          GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
       );
 
-      // Sign into Firebase with the verified Google tokens
-      final UserCredential userCredential = 
+      // Sign in to Firebase
+      final UserCredential userCredential =
           await FirebaseAuth.instance.signInWithCredential(credential);
-      
-      final token = await userCredential.user?.getIdToken();
-      debugPrint('Logged in via Google! Token: $token');
-
-      // TODO: send `token` to your FastAPI backend down to Supabase
 
       if (mounted && userCredential.user != null) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ),
         );
       }
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = e.message ?? 'Google Sign-In failed.';
-      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Google Sign-In failed: ${e.toString()}';
+        });
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
+
+
 
   @override
   void dispose() {
@@ -127,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
       appBar: AppBar(title: const Text('Log In')),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
-        child: SingleChildScrollView( // Wrapped in scroll view to prevent keyboard overflow layout breaks
+        child: SingleChildScrollView( 
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -151,31 +162,28 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? const CircularProgressIndicator()
                   : Column(
                       children: [
-                        // Standard Email Login Button
                         ElevatedButton(
                           onPressed: _handleLogin,
                           style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45)),
                           child: const Text('Log In'),
                         ),
                         const SizedBox(height: 12),
-                        // 4. NEW GOOGLE LOG IN CLICK ELEMENT
                         OutlinedButton.icon(
                           onPressed: _handleGoogleSignIn,
                           style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 45)),
-                          icon: const Icon(Icons.g_mobiledata, size: 28), // You can swap this for an image asset if preferred
+                          icon: const Icon(Icons.g_mobiledata, size: 28), 
                           label: const Text('Sign In with Google'),
                         ),
                         const SizedBox(height: 24),
-                        // Navigation toggle link to redirect to registration
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const SignupScreen()),
-                            );
-                          },
-                          child: const Text("Don't have an account? Sign Up"),
-                        )
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const SignupScreen(role: 'student')), 
+                          );
+                        },
+                        child: const Text("Don't have an account? Sign Up"),
+                      )
                       ],
                     ),
             ],
