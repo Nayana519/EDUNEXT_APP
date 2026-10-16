@@ -13,6 +13,9 @@ class Subject(Base):
     code: Mapped[str] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(120))
     color: Mapped[str] = mapped_column(String(9), default="#2F6F4E")
+    semester_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("semesters.id"), nullable=True)
+    class_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("classes.id"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(10), default="common", server_default="common")
     
     # ⚠️ REMINDER: teacher_id is currently NOT NULL. 
     # Change to Mapped[uuid.UUID | None] and add nullable=True if teachers claim subjects later!
@@ -21,9 +24,11 @@ class Subject(Base):
 
 class Enrollment(Base):
     __tablename__ = "enrollments"
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    student_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("students.id"), primary_key=True)
     subject_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("subjects.id"), primary_key=True)
-
+    source: Mapped[str] = mapped_column(String(20), default="manual")  # manual / imported / common_auto
+    added_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 class Post(Base):
     __tablename__ = "posts"
@@ -35,7 +40,7 @@ class Post(Base):
     body: Mapped[str] = mapped_column(Text, default="")
     tag: Mapped[str | None] = mapped_column(String(80), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    
+    class_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("classes.id"), nullable=True)
     subject: Mapped["Subject | None"] = relationship()
 
 

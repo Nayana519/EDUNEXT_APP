@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+final _reg = TextEditingController();
 
 class ChooseRoleScreen extends StatefulWidget {
   final void Function(Map<String, dynamic> me) onDone;
@@ -15,13 +16,22 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
   bool _busy = false;
   String? _error;
 
+  static Future<Map<String, dynamic>> register(String role, {String? registerNumber}) async =>
+      (await _dio.post('/auth/register', data: {
+        'role': role,
+        if (registerNumber != null && registerNumber.isNotEmpty)
+          'register_number': registerNumber,
+      })).data;
+
+
   Future<void> _choose(String role) async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final me = await ApiService.register(role);
+  if (role == 'student' && _reg.text.trim().isEmpty) {
+    setState(() => _error = 'Enter your register number first.');
+    return;
+  }
+  setState(() { _busy = true; _error = null; });
+  try {
+    final me = await ApiService.register(role, registerNumber: _reg.text.trim());
       if (mounted) widget.onDone(me);
     } on DioException catch (e) {
       final data = e.response?.data;
@@ -92,9 +102,15 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
                     fontSize: 24,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            Text('Tell us who you are. You choose this only once.',
-                textAlign: TextAlign.center, style: TextStyle(color: c.slate)),
-            const SizedBox(height: 28),
+            TextField(
+              controller: _reg,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Register number (students)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
             _card('student', "I'm a student",
                 'Class feed, materials, assignments', Icons.school),
             _card('teacher', "I'm a teacher",

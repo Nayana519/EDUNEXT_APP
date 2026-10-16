@@ -1,13 +1,14 @@
 from fastapi import FastAPI
 # Pull the specific routers
-from app.routers import subjects, feed 
+from app.routers import subjects, feed
+from app.routers import admin
 
 app = FastAPI(title="EduNex Backend")
 
 # Include the routing logic trees
 app.include_router(subjects.router)
 app.include_router(feed.router)
-
+app.include_router(admin.router) 
 @app.get("/")
 def read_root():
     return {"status": "EduNex Core System API Operational"}

@@ -1,12 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart'; 
-import 'home_screen.dart';
-import 'signup_screen.dart'; 
+import '../theme/app_theme.dart';
+import '../widgets/google_button.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -17,113 +16,30 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
   bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    User? currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        }
-      });
-    }
-  }
-
   Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = 'Enter your email and password.');
+      return;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
     try {
-      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-      final token = await credential.user?.getIdToken();
-      debugPrint('Logged in! Token: $token'); 
-
-      // ⬇️ UPDATE YOUR NAVIGATION LINKS INSIDE LOGIN_SCREEN WITH THIS PATH ROUTE ⬇️
-    if (mounted && userCredential.user != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          // Swap out const HomeScreen() and pass the active role attribute parameters securely
-          builder: (context) => const DashboardScreen(role: 'teacher'), // Use 'student' or 'teacher' dynamically
-        ),
-      );
-    }
-
-
+      await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
+      // No navigation here: main.dart switches screens by itself.
     } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = e.message ?? 'Login failed. Check your email and password.';
-      });
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  // 👑 FIXED GOOGLE SIGN-IN METHOD MATCHING V7.0.0+ SINGLETON SURFACE
-    // 👑 100% Correct Google Sign-In Flow for google_sign_in 7.2.0+
-
-  Future<void> _handleGoogleSignIn() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final googleSignIn = GoogleSignIn.instance;
-
-      // Google Sign-In v7 requires initialization
-      await googleSignIn.initialize();
-
-      // Start Google sign-in
-      final GoogleSignInAccount googleUser =
-          await googleSignIn.authenticate();
-
-      // Get Google authentication information
-      final GoogleSignInAuthentication googleAuth =
-          googleUser.authentication;
-
-      // Create Firebase credential using Google ID token
-      final OAuthCredential credential =
-          GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-      );
-
-      // Sign in to Firebase
-      final UserCredential userCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-
-      if (mounted && userCredential.user != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
-          ),
-        );
-      }
-    } catch (e) {
       if (mounted) {
-        setState(() {
-          _errorMessage = 'Google Sign-In failed: ${e.toString()}';
-        });
+        setState(() => _errorMessage =
+            e.message ?? 'Login failed. Check your email and password.');
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
-
-
 
   @override
   void dispose() {
@@ -134,59 +50,90 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.edu;
     return Scaffold(
-      appBar: AppBar(title: const Text('Log In')),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: SingleChildScrollView( 
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                    color: c.ink, borderRadius: BorderRadius.circular(18)),
+                child: Icon(Icons.school, color: c.onInk, size: 30),
+              ),
+              const SizedBox(height: 16),
+              const Text('EduNex',
+                  style: TextStyle(
+                      fontFamily: 'serif',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Text('One place for class updates, notes, and assignments.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: c.slate, fontSize: 13)),
+              const SizedBox(height: 28),
               TextField(
                 controller: _emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
                 keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10))),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: _passwordController,
-                decoration: const InputDecoration(labelText: 'Password'),
                 obscureText: true,
+                decoration: InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10))),
               ),
-              const SizedBox(height: 20),
               if (_errorMessage != null)
-                Text(_errorMessage!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(_errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: c.danger)),
+                ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleLogin,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: c.ink,
+                    foregroundColor: c.onInk,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Log In'),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Row(children: [
+                Expanded(child: Divider()),
+                Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('or')),
+                Expanded(child: Divider()),
+              ]),
+              const SizedBox(height: 14),
+              const GoogleButton(),
               const SizedBox(height: 12),
-              _isLoading
-                  ? const CircularProgressIndicator()
-                  : Column(
-                      children: [
-                        ElevatedButton(
-                          onPressed: _handleLogin,
-                          style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45)),
-                          child: const Text('Log In'),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: _handleGoogleSignIn,
-                          style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 45)),
-                          icon: const Icon(Icons.g_mobiledata, size: 28), 
-                          label: const Text('Sign In with Google'),
-                        ),
-                        const SizedBox(height: 24),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const SignupScreen(role: 'student')), 
-                          );
-                        },
-                        child: const Text("Don't have an account? Sign Up"),
-                      )
-                      ],
-                    ),
-            ],
+              TextButton(
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const SignupScreen())),
+                child: const Text("Don't have an account? Sign Up"),
+              ),
+            ]),
           ),
         ),
       ),

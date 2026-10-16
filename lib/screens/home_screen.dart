@@ -1,94 +1,119 @@
 import 'package:flutter/material.dart';
-import '../models/subject.dart';
-import '../models/announcement.dart';
-import '../widgets/subject_chip.dart';
+import '../services/api_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/edu_top_bar.dart';
 import '../widgets/feed_card.dart';
+import '../widgets/subject_chip.dart';
+import 'compose_screen.dart';
 import 'subject_detail_screen.dart';
 
-class HomeScreen extends StatelessWidget {
-  final String role;
+class HomeScreen extends StatefulWidget {
+  final Map<String, dynamic> me;
+  const HomeScreen({super.key, required this.me});
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
-  const HomeScreen({super.key, required this.role});
+class _HomeScreenState extends State<HomeScreen> {
+  late Future<List<dynamic>> _feed = ApiService.getFeed();
+  late Future<List<dynamic>> _subjects = ApiService.getSubjects();
 
-  // Mock array states matching the React design spec elements
-  final List<Subject> sampleSubjects = const [
-    Subject(id: "cs301", code: "CS301", name: "Database Systems", teacher: "Dr. Meera Sharma", color: Color(0xFF2F6F4E), unread: 2),
-    Subject(id: "cs302", code: "CS302", name: "Operating Systems", teacher: "Dr. Arvind Rao", color: Color(0xFF3E6E9E), unread: 0),
-    Subject(id: "cs303", code: "CS303", name: "Computer Networks", teacher: "Prof. Kavya Iyer", color: Color(0xFFE2963A), unread: 1),
-    Subject(id: "cs304", code: "CS304", name: "Software Engineering", teacher: "Dr. Meera Sharma", color: Color(0xFF7A4B6B), unread: 0),
-  ];
+  void _refresh() => setState(() {
+        _feed = ApiService.getFeed();
+        _subjects = ApiService.getSubjects();
+      });
 
-  final List<Announcement> sampleFeed = const [
-    Announcement(id: 1, subjectCode: "CS301", color: Color(0xFF2F6F4E), type: "text", title: "Assignment 3 uploaded", body: "Covers normalization up to 3NF. Submit as a single PDF.", time: "2h ago", tag: "Deadline: 22 Sep"),
-    Announcement(id: 2, subjectCode: "Class", color: Color(0xFF1E2A44), type: "text", title: "Mid-semester exam schedule released", body: "Room allocations are posted outside the HOD office.", time: "5h ago"),
-    Announcement(id: 3, subjectCode: "CS303", color: Color(0xFFE2963A), type: "voice", title: "Voice note: lab rescheduled", body: "Transcribed: “Friday's networking lab moves to Monday, same time, same lab.”", time: "Yesterday", tag: "Auto-transcribed"),
-  ];
+  String _greeting() {
+    final h = DateTime.now().hour;
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.edu;
+    final role = widget.me['role'] ?? 'student';
+    final isTeacher = role == 'teacher';
+    final email = (widget.me['email'] ?? '') as String;
+    final name = widget.me['name'] ?? email.split('@').first;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: [
-            // GREETING CONTAINER
-            Text(
-              role == 'teacher' ? 'Good morning, Professor' : 'Good morning, Anjali',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E2A44)),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'B.Tech CSE — Semester 5, Section A',
-              style: TextStyle(color: Color(0xFF63697A), fontSize: 13, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 20),
-
-            // DYNAMIC SUBJECT/CLASS SELECTOR CHIPS GRID
-            Text(
-              role == 'teacher' ? 'Your Active Classes' : 'Enrolled Subjects',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF63697A), letterSpacing: 0.5),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 40,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: sampleSubjects.length,
-                itemBuilder: (context, index) {
-                  final subject = sampleSubjects[index];
-                  return SubjectChip(
-                    subject: subject,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SubjectDetailScreen(subject: subject),
+      floatingActionButton: isTeacher
+          ? FloatingActionButton(
+              backgroundColor: c.chalk,
+              foregroundColor: Colors.white,
+              shape: const CircleBorder(),
+              onPressed: () async {
+                final posted = await Navigator.push<bool>(
+                    context, MaterialPageRoute(builder: (_) => const ComposeScreen()));
+                if (posted == true) _refresh();
+              },
+              child: const Icon(Icons.add),
+            )
+          : null,
+      body: RefreshIndicator(
+        onRefresh: () async => _refresh(),
+        child: ListView(padding: const EdgeInsets.only(bottom: 90), children: [
+          const EduTopBar(title: 'EduNex', wordmark: true),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${_greeting()}, $name',
+                  style: const TextStyle(
+                      fontFamily: 'serif', fontSize: 20, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 3),
+              Text(isTeacher ? 'Teacher dashboard' : 'Student dashboard',
+                  style: TextStyle(fontSize: 12.5, color: c.slate)),
+            ]),
+          ),
+          SizedBox(
+            height: 40,
+            child: FutureBuilder<List<dynamic>>(
+              future: _subjects,
+              builder: (context, snap) {
+                final list = snap.data ?? [];
+                return ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  children: [
+                    for (final s in list)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: SubjectChip(
+                          subject: s,
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => SubjectDetailScreen(subject: s, role: role))),
                         ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // SYSTEM FEED LAYOUT LIST
-            const Text(
-              'Class Feed Updates',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E2A44)),
-            ),
-            const SizedBox(height: 12),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: sampleFeed.length,
-              itemBuilder: (context, index) {
-                return FeedCard(item: sampleFeed[index]);
+                      ),
+                  ],
+                );
               },
             ),
-          ],
-        ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+            child: Text(isTeacher ? 'Recent activity' : 'Class feed',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: FutureBuilder<List<dynamic>>(
+              future: _feed,
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snap.hasError) return Text('Error: ${snap.error}');
+                final posts = snap.data!;
+                if (posts.isEmpty) {
+                  return Text('No announcements yet', style: TextStyle(color: c.slate));
+                }
+                return Column(children: [for (final p in posts) FeedCard(post: p)]);
+              },
+            ),
+          ),
+        ]),
       ),
     );
   }

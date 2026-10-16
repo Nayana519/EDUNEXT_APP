@@ -1,53 +1,80 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, or_
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
+
+from app.core.access import (can_manage_subject, can_post_to_class, ensure_can_view_subject,
+                             get_teacher, user_ids_for_class, user_ids_for_subject,
+                             visible_class_ids, visible_subjects)
 from app.core.database import get_db
 from app.dependencies import get_current_user, require_teacher
-from app.models.academic import Post, Subject, Enrollment, Notification
+from app.models.academic import Notification, Post, Subject
+from app.models.college import ClassGroup
 
 router = APIRouter(prefix="/feed", tags=["feed"])
 
-def post_out(p: Post):
-    return {
-        "id": str(p.id),
-        "subject_code": p.subject.code if p.subject else None,
-        "color": p.subject.color if p.subject else "#1E2A44",
-        "type": p.type, "title": p.title, "body": p.body,
-        "tag": p.tag, "created_at": p.created_at.isoformat(),
-    }
+
+def post_out(p: Post, db: Session) -> dict:
+    if p.subject is not None:
+        label, color = p.subject.code, p.subject.color
+    elif p.class_id is not None:
+        cg = db.get(ClassGroup, p.class_id)
+        label, color = (cg.name if cg else "Class"), "#1E2A44"
+    else:
+        label, color = None, "#1E2A44"
+    return {"id": str(p.id), "subject_code": label, "color": color, "type": p.type,
+            "title": p.title, "body": p.body, "tag": p.tag,
+            "created_at": p.created_at.isoformat()}
+
 
 @router.get("")
-def get_feed(subject_id: UUID | None = None,
-             user=Depends(get_current_user), db: Session = Depends(get_db)):
+def get_feed(subject_id: UUID | None = None, user=Depends(get_current_user),
+             db: Session = Depends(get_db)):
     q = select(Post).order_by(Post.created_at.desc()).limit(50)
     if subject_id:
+        ensure_can_view_subject(db, user, subject_id)
         q = q.where(Post.subject_id == subject_id)
     else:
-        if user.role == "teacher":
-            mine = select(Subject.id).where(Subject.teacher_id == user.id)
-        else:
-            mine = select(Enrollment.subject_id).where(Enrollment.user_id == user.id)
-        q = q.where(or_(Post.subject_id.in_(mine), Post.subject_id.is_(None)))
-    return [post_out(p) for p in db.scalars(q).all()]
+        teacher = get_teacher(db, user) if user.role == "teacher" else None
+        if not (teacher and teacher.is_admin):
+            q = q.where(or_(
+                Post.subject_id.in_(visible_subjects(db, user, Subject.id)),
+                Post.class_id.in_(visible_class_ids(db, user))))
+    return [post_out(p, db) for p in db.scalars(q).all()]
+
 
 class PostIn(BaseModel):
-    subject_id: UUID | None = None
+    subject_id: UUID | None = None   # a subject announcement ...
+    class_id: UUID | None = None     # ... or a whole-class announcement
     title: str
     body: str = ""
     tag: str | None = None
 
+
 @router.post("", status_code=201)
 def create_post(data: PostIn, user=Depends(require_teacher), db: Session = Depends(get_db)):
-    post = Post(subject_id=data.subject_id, author_id=user.id,
+    if (data.subject_id is None) == (data.class_id is None):
+        raise HTTPException(400, "Choose either a subject or a class.")
+
+    if data.subject_id:
+        subject = db.get(Subject, data.subject_id)
+        if subject is None:
+            raise HTTPException(404, "Subject not found.")
+        if not can_manage_subject(db, user, subject):
+            raise HTTPException(403, "You do not manage this subject.")
+        recipients = user_ids_for_subject(db, subject.id)
+    else:
+        if not can_post_to_class(db, user, data.class_id):
+            raise HTTPException(403, "You cannot post to this class.")
+        recipients = user_ids_for_class(db, data.class_id)
+
+    post = Post(subject_id=data.subject_id, class_id=data.class_id, author_id=user.id,
                 title=data.title, body=data.body, tag=data.tag)
     db.add(post)
-    if data.subject_id:
-        student_ids = db.scalars(
-            select(Enrollment.user_id).where(Enrollment.subject_id == data.subject_id))
-        db.add_all([Notification(user_id=i, subject_id=data.subject_id, message=data.title)
-                    for i in student_ids])
+    db.add_all([Notification(user_id=uid, subject_id=data.subject_id, message=data.title)
+                for uid in recipients])
     db.commit()
     db.refresh(post)
-    return post_out(post)
+    return post_out(post, db)

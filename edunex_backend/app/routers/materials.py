@@ -2,7 +2,7 @@ import os
 import shutil
 import uuid
 from uuid import UUID
-
+from app.core.access import can_manage_subject, ensure_can_view_subject
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -49,6 +49,7 @@ def read_image(path: str) -> list[str]:
 @router.get("")
 def list_materials(subject_id: UUID, user=Depends(get_current_user),
                    db: Session = Depends(get_db)):
+    ensure_can_view_subject(db, user, subject_id)
     rows = db.scalars(select(Material).where(Material.subject_id == subject_id)
                       .order_by(Material.created_at.desc())).all()
     return [{"id": str(m.id), "name": m.name, "page_count": m.page_count,
@@ -60,7 +61,7 @@ def list_materials(subject_id: UUID, user=Depends(get_current_user),
 def upload(subject_id: UUID = Form(...), file: UploadFile = File(...),
            user=Depends(require_teacher), db: Session = Depends(get_db)):
     subject = db.get(Subject, subject_id)
-    if subject is None or subject.teacher_id != user.id:
+    if subject is None or not can_manage_subject(db, user, subject):
         raise HTTPException(403, "Not your subject")
 
     ext = os.path.splitext(file.filename or "")[1].lower()

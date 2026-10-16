@@ -3,6 +3,7 @@ import sys
 from logging.config import fileConfig
 from sqlalchemy import create_engine, pool
 from alembic import context
+from app.models import college
 
 # 1. PATH FIX FIRST: Tell Python exactly how to look for your 'app' folder layouts
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

@@ -1,12 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
-import 'home_screen.dart'; // ⬇️ ADDED THIS IMPORT FOR NAVIGATION
+import '../theme/app_theme.dart';
+import '../widgets/google_button.dart';
 
 class SignupScreen extends StatefulWidget {
-  final String role; // 'student' or 'teacher', passed in from RoleSelectScreen
-  const SignupScreen({super.key, required this.role});
-
+  const SignupScreen({super.key});
   @override
   State<SignupScreen> createState() => _SignupScreenState();
 }
@@ -17,98 +15,113 @@ class _SignupScreenState extends State<SignupScreen> {
   String? _errorMessage;
   bool _isLoading = false;
 
+  void _backToRoot() => Navigator.of(context).popUntil((r) => r.isFirst);
+
   Future<void> _handleSignup() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    if (email.isEmpty || password.length < 6) {
+      setState(() =>
+          _errorMessage = 'Enter your email and a password of 6+ characters.');
+      return;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
     try {
-      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-      final token = await credential.user?.getIdToken();
-      debugPrint('Signed up! Token: token, Role: {widget.role}');
-
-      // TODO: send `token` and `widget.role` to your FastAPI backend to create a profile
-
-      // ⬇️ ADDED THIS ROUTING TRIGER RIGHT HERE ⬇️
-      if (mounted && credential.user != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      }
+      await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+      // Close this page so the app can show the next step (choose role).
+      if (mounted) _backToRoot();
     } on FirebaseAuthException catch (e) {
-      debugPrint('FirebaseAuthException: e.code - {e.message}');
-      setState(() => _errorMessage = e.message ?? 'Something went wrong. Try again.');
-    } catch (e, stack) {
-      // Catches ANYTHING else, so nothing slips through silently
-      debugPrint('UNEXPECTED ERROR: \$e');
-      debugPrint('\$stack');
-      setState(() => _errorMessage = 'Unexpected error: \$e');
+      if (mounted) {
+        setState(() =>
+            _errorMessage = e.message ?? 'Something went wrong. Try again.');
+      }
     } finally {
-      // ⚠️ THE DUPLICATE CATCH BLOCK HAS BEEN SAFELY REMOVED FROM HERE
-      setState(() => _isLoading = false);
-    }
-  }
-
-
-   void initState() {
-    super.initState();
-    User? currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        }
-      });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final c = context.edu;
     return Scaffold(
-      appBar: AppBar(title: Text('Sign up as \${widget.role}')),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+      appBar: AppBar(title: const Text('Create account')),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(children: [
+            Text("You'll choose student or teacher in the next step.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: c.slate, fontSize: 13)),
+            const SizedBox(height: 20),
             TextField(
               controller: _emailController,
-              decoration: const InputDecoration(labelText: 'Email'),
               keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10))),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _passwordController,
-              decoration: const InputDecoration(labelText: 'Password'),
               obscureText: true,
+              decoration: InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10))),
             ),
-            const SizedBox(height: 20),
             if (_errorMessage != null)
-              Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(_errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: c.danger)),
+              ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _handleSignup,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: c.ink,
+                  foregroundColor: c.onInk,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Sign Up'),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Row(children: [
+              Expanded(child: Divider()),
+              Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('or')),
+              Expanded(child: Divider()),
+            ]),
+            const SizedBox(height: 14),
+            GoogleButton(onSuccess: _backToRoot),
             const SizedBox(height: 12),
-            _isLoading
-                ? const CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: _handleSignup,
-                    child: const Text('Sign Up'),
-                  ),
             TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                );
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text('Already have an account? Log in'),
             ),
-          ],
+          ]),
         ),
       ),
     );
