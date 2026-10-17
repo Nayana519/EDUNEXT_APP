@@ -11,6 +11,7 @@ from app.core.importer import rows_from_file, rows_from_text
 from app.models.academic import Enrollment, Subject
 from app.models.college import (ClassGroup, ClassStudent, EnrollmentAudit,
                                 ImportBatch, Semester, Student)
+from app.core.college_rules import email_problem_for_student, normalize_reg, parse_reg
 
 router = APIRouter(prefix="/admin/import", tags=["import"])
 
@@ -19,19 +20,26 @@ router = APIRouter(prefix="/admin/import", tags=["import"])
 def _plan_students(db: Session, sem_id, rows):
     classes = {c.name.upper(): c for c in db.scalars(
         select(ClassGroup).where(ClassGroup.semester_id == sem_id))}
+    class_names = {c.id: c.name for c in classes.values()}
     students = {s.register_number: s for s in db.scalars(select(Student))}
-    members = set()
-    if classes:
-        members = {(r[0], r[1]) for r in db.execute(
-            select(ClassStudent.class_id, ClassStudent.student_id)
-            .where(ClassStudent.class_id.in_([c.id for c in classes.values()]))).all()}
 
-    plan, errors, seen = [], [], set()
-    new_students = new_members = unchanged = 0
-    for i, r in enumerate(rows, start=2):          # row 1 is the header
-        reg = r.get("register_number", "").upper()
+    placed = {}                                   # student id -> class id, this semester
+    if classes:
+        for cid, sid in db.execute(
+                select(ClassStudent.class_id, ClassStudent.student_id)
+                .where(ClassStudent.class_id.in_(list(class_names)))).all():
+            placed[sid] = cid
+
+    plan, errors, conflicts, seen = [], [], [], set()
+    new_students = unchanged = 0
+    for i, r in enumerate(rows, start=2):         # row 1 is the header
+        reg = normalize_reg(r.get("register_number"))
         if not reg:
             errors.append({"row": i, "problem": "Missing register number"})
+            continue
+        if parse_reg(reg) is None:
+            errors.append({"row": i, "register_number": reg,
+                           "problem": "Invalid register number (expected like CHN23CS141)"})
             continue
         if reg in seen:
             errors.append({"row": i, "register_number": reg, "problem": "Duplicate in this file"})
@@ -42,25 +50,34 @@ def _plan_students(db: Session, sem_id, rows):
             errors.append({"row": i, "register_number": reg,
                            "problem": f"Class '{r.get('class', '')}' does not exist in this semester"})
             continue
+        email = (r.get("email") or "").strip().lower() or None
+        if email:
+            problem = email_problem_for_student(email, reg)
+            if problem:
+                errors.append({"row": i, "register_number": reg, "problem": problem})
+                continue
         st = students.get(reg)
         if st is None and not r.get("name"):
             errors.append({"row": i, "register_number": reg,
                            "problem": "Missing name for a new student"})
             continue
-        is_new = st is None
-        if not is_new and (cls.id, st.id) in members:
-            unchanged += 1
-            continue
-        plan.append({"reg": reg, "name": r.get("name", ""),
-                     "email": (r.get("email") or "").lower() or None,
+        if st is not None:
+            current = placed.get(st.id)
+            if current == cls.id:
+                unchanged += 1
+                continue
+            if current is not None:
+                conflicts.append({"row": i, "register_number": reg,
+                                  "problem": f"Already in {class_names[current]} this semester. Not moved."})
+                continue
+        plan.append({"reg": reg, "name": r.get("name", ""), "email": email,
                      "class_id": str(cls.id)})
-        new_students += is_new
-        new_members += 1
+        new_students += st is None
 
     summary = {"rows_in_file": len(rows), "new_students": new_students,
-               "class_memberships_to_add": new_members, "unchanged": unchanged,
-               "errors": len(errors), "to_apply": len(plan)}
-    return plan, summary, errors, []
+               "class_memberships_to_add": len(plan), "unchanged": unchanged,
+               "conflicts": len(conflicts), "errors": len(errors), "to_apply": len(plan)}
+    return plan, summary, errors, conflicts
 
 
 def _plan_enrollments(db: Session, sem_id, rows):
@@ -85,7 +102,7 @@ def _plan_enrollments(db: Session, sem_id, rows):
     plan, errors, conflicts, seen = [], [], [], set()
     already = 0
     for i, r in enumerate(rows, start=2):
-        reg = r.get("register_number", "").upper()
+        reg = normalize_reg(r.get("register_number"))
         code = r.get("subject_code", "").upper()
         cname = r.get("class", "")
 
@@ -94,6 +111,9 @@ def _plan_enrollments(db: Session, sem_id, rows):
 
         if not reg or not code:
             bad("Needs a register number and a subject code")
+            continue
+        if parse_reg(reg) is None:
+            bad("Invalid register number (expected like CHN23CS141)")
             continue
         st = students.get(reg)
         if st is None:
@@ -113,7 +133,7 @@ def _plan_enrollments(db: Session, sem_id, rows):
             bad("More than one subject uses this code. Add the class column")
             continue
         subj = cands[0]
-        if cls is not None and subj.class_id not in (None, cls.id):
+        if subj.kind == "common" and cls is not None and subj.class_id not in (None, cls.id):
             bad("This subject belongs to a different class")
             continue
 

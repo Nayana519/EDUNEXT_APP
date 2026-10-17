@@ -35,7 +35,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     title: Text(n['message']),
                     onTap: () async {
                       await ApiService.markNotificationRead(n['id']);
-                      setState(() => _items = ApiService.getNotifications());
+                      setState(() {
+                            _items = ApiService.getNotifications();
+                          });
                     },
                   ),
                 ),

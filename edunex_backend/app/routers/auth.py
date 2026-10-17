@@ -3,9 +3,11 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.college_rules import (email_problem_for_student, email_problem_for_teacher,
+                                    normalize_reg, reg_problem)
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models.college import Student, Teacher
+from app.models.college import ClassAdvisor, Student, Teacher
 from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -19,6 +21,8 @@ class RegisterRequest(BaseModel):
 def _profile(db: Session, user: User) -> dict:
     student = db.scalars(select(Student).where(Student.user_id == user.id)).first()
     teacher = db.scalars(select(Teacher).where(Teacher.user_id == user.id)).first()
+    advisor = db.scalars(select(ClassAdvisor.class_id)
+                         .where(ClassAdvisor.user_id == user.id).limit(1)).first()
     name = (student.name if student else None) or (teacher.name if teacher else None) or user.name
     return {
         "id": str(user.id),
@@ -27,6 +31,7 @@ def _profile(db: Session, user: User) -> dict:
         "role": user.role,
         "register_number": student.register_number if student else None,
         "is_admin": bool(teacher and teacher.is_admin),
+        "is_advisor": advisor is not None,
     }
 
 
@@ -44,6 +49,9 @@ def register(body: RegisterRequest, db: Session = Depends(get_db),
     email = (user.email or "").strip().lower()
 
     if role == "teacher":
+        problem = email_problem_for_teacher(email)
+        if problem:
+            raise HTTPException(403, problem)
         teacher = db.scalars(select(Teacher).where(func.lower(Teacher.email) == email)).first()
         if teacher is None:
             raise HTTPException(403, "This email is not on the approved teacher list.")
@@ -51,12 +59,18 @@ def register(body: RegisterRequest, db: Session = Depends(get_db),
             raise HTTPException(409, "This teacher record is already linked to another account.")
         teacher.user_id = user.id
     else:
-        reg = (body.register_number or "").strip().upper()
+        reg = normalize_reg(body.register_number)
         if not reg:
             raise HTTPException(400, "Enter your register number.")
+        problem = reg_problem(reg)
+        if problem:
+            raise HTTPException(400, problem)
+        problem = email_problem_for_student(email, reg)
+        if problem:
+            raise HTTPException(403, problem)
         student = db.scalars(select(Student).where(Student.register_number == reg)).first()
         if student is None:
-            raise HTTPException(403, "Register number not found. Ask your class teacher to add you.")
+            raise HTTPException(403, "Register number not found. Ask your class advisor to add you.")
         if student.user_id not in (None, user.id):
             raise HTTPException(409, "This register number is already linked to another account.")
         if student.college_email and student.college_email.strip().lower() != email:

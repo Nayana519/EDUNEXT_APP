@@ -78,3 +78,8 @@ class ImportBatch(Base):
     plan: Mapped[list] = mapped_column(JSONB, default=list)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class ClassAdvisor(Base):
+    __tablename__ = "class_advisors"
+    class_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("classes.id"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)

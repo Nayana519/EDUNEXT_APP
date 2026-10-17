@@ -19,9 +19,9 @@ class _ImportScreenState extends State<ImportScreen> {
 
   bool get _isStudents => widget.kind == 'students';
 
-  String get _example => _isStudents
-      ? 'register_number,name,email,class\nCEC001,Asha K,asha@college.edu,S7 CSE-D'
-      : 'register_number,class,subject_code\nCEC001,S7 CSE-D,CST412';
+    String get _example => _isStudents
+      ? 'register_number,name,email,class\nCHN23CS001,Asha K,chn23csd001@ceconline.edu,S7 CSE-D'
+      : 'register_number,class,subject_code\nCHN23CS001,S7 CSE-D,CST412';
 
   Future<void> _runPreview() async {
     if (_text.text.trim().isEmpty) {

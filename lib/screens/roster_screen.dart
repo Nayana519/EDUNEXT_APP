@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../utils.dart';
 import '../widgets/prompt.dart';
+import 'audit_screen.dart';
 
 class RosterScreen extends StatefulWidget {
   final Map<String, dynamic> subject;
@@ -14,7 +15,11 @@ class RosterScreen extends StatefulWidget {
 class _RosterScreenState extends State<RosterScreen> {
   late Future<List<dynamic>> _items = ApiService.getRoster(widget.subject['id']);
 
-  void _reload() => setState(() => _items = ApiService.getRoster(widget.subject['id']));
+  void _reload() {
+  setState(() {
+    _items = ApiService.getRoster(widget.subject['id']);
+  });
+}
 
   void _toast(String m) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -54,7 +59,17 @@ class _RosterScreenState extends State<RosterScreen> {
   Widget build(BuildContext context) {
     final c = context.edu;
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.subject['code']} students')),
+       appBar: AppBar(
+        title: Text('${widget.subject['code']} students'),
+        actions: [
+          IconButton(
+            tooltip: 'History',
+            icon: const Icon(Icons.history),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => AuditScreen(subject: widget.subject))),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: c.chalk,
         foregroundColor: Colors.white,

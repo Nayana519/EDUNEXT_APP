@@ -53,11 +53,30 @@ static Future<void> markNotificationRead(String id) async {
   await _dio.patch('/notifications/$id/read');
 }
 
-static Future<void> createPost(
-    {String? subjectId, required String title, String body = ''}) async {
-  await _dio.post('/feed',
-      data: {'subject_id': subjectId, 'title': title, 'body': body});
+static Future<void> createPost({
+  String? subjectId,
+  String? classId,
+  required String title,
+  String body = '',
+}) async {
+  await _dio.post('/feed', data: {
+    'subject_id': subjectId,
+    'class_id': classId,
+    'title': title,
+    'body': body,
+  });
 }
+
+static Future<Map<String, dynamic>> getPostTargets() async =>
+    (await _dio.get('/feed/targets')).data;
+
+static Future<List<dynamic>> getAudit(String subjectId) async =>
+    (await _dio.get('/subjects/$subjectId/audit')).data;
+
+static Future<Map<String, dynamic>> rollover(String year, String name,
+        {required bool confirm}) async =>
+    (await _dio.post('/admin/rollover',
+        data: {'academic_year': year, 'name': name, 'confirm': confirm})).data;
 
 static Future<Map<String, dynamic>> register(String role, {String? registerNumber}) async =>
     (await _dio.post('/auth/register', data: {
@@ -102,5 +121,19 @@ static Future<void> removeFromRoster(String subjectId, String reg, String reason
       queryParameters: {'reason': reason});
 }
 
+static Future<List<dynamic>> myClasses() async => (await _dio.get('/classes/mine')).data;
 
+static Future<List<dynamic>> classStudents(String id) async =>
+    (await _dio.get('/classes/$id/students')).data;
+
+static Future<void> addToClass(String id, String reg, String? name) async {
+  await _dio.post('/classes/$id/students', data: {
+    'register_number': reg,
+    if (name != null && name.isNotEmpty) 'name': name,
+  });
+}
+
+static Future<void> removeFromClass(String id, String reg, String reason) async {
+  await _dio.delete('/classes/$id/students/$reg', queryParameters: {'reason': reason});
+}
 }

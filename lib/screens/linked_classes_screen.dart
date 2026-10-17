@@ -21,7 +21,11 @@ class _LinkedClassesScreenState extends State<LinkedClassesScreen> {
 
   bool get _isTeacher => widget.role == 'teacher';
 
-  void _reload() => setState(() => _items = ApiService.getSubjects());
+  void _reload() {
+  setState(() {
+    _items = ApiService.getSubjects();
+  });
+}
 
   Future<void> _add() async {
     final codeCtrl = TextEditingController();

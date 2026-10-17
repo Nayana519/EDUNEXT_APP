@@ -30,9 +30,12 @@ class _SignupScreenState extends State<SignupScreen> {
       _errorMessage = null;
     });
     try {
-      await FirebaseAuth.instance
+          final cred = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email, password: password);
-      // Close this page so the app can show the next step (choose role).
+      try {
+        await cred.user?.sendEmailVerification();
+      } catch (_) {}
+      // Close this page so the app can show the next step (verify email, then role).
       if (mounted) _backToRoot();
     } on FirebaseAuthException catch (e) {
       if (mounted) {

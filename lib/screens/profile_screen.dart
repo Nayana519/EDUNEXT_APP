@@ -5,7 +5,7 @@ import '../widgets/edu_top_bar.dart';
 import 'help_screen.dart';
 import 'linked_classes_screen.dart';
 import 'admin_tools_screen.dart';
-
+import 'my_classes_screen.dart';
 class ProfileScreen extends StatelessWidget {
   final Map<String, dynamic> me;
   const ProfileScreen({super.key, required this.me});
@@ -87,6 +87,12 @@ class ProfileScreen extends StatelessWidget {
             label: 'Admin tools',
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const AdminToolsScreen())),
+          ),
+        if (me['is_admin'] == true || me['is_advisor'] == true)
+          _SettingsRow(
+            label: 'My classes',
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const MyClassesScreen())),
           ),
                 _SettingsRow(
           label: 'Notification preferences',

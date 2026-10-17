@@ -4,13 +4,14 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.models.user import User
 
 from app.core.access import can_manage_subject, visible_subjects
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.academic import Enrollment, Notification, Subject
 from app.models.college import EnrollmentAudit, Student
-
+from app.core.college_rules import normalize_reg
 router = APIRouter(prefix="/subjects", tags=["subjects"])
 
 
@@ -53,7 +54,7 @@ class AddStudent(BaseModel):
 def add_student(subject_id: UUID, body: AddStudent, db: Session = Depends(get_db),
                 user=Depends(get_current_user)):
     subject = _managed(db, user, subject_id)
-    reg = body.register_number.strip().upper()
+    reg = normalize_reg(body.register_number)
     student = db.scalars(select(Student).where(Student.register_number == reg)).first()
     if student is None:
         raise HTTPException(404, "No approved student has that register number.")
@@ -123,3 +124,23 @@ def student_join_by_code(
     db.add(Enrollment(user_id=current_user.id, subject_id=subject.id))
     db.commit()
     return {"status": "success", "message": f"Joined {subject.name}"}
+
+@router.get("/{subject_id}/audit")
+def audit_log(subject_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    _managed(db, user, subject_id)
+    rows = db.execute(
+        select(EnrollmentAudit, Student, User.email)
+        .join(Student, Student.id == EnrollmentAudit.student_id)
+        .outerjoin(User, User.id == EnrollmentAudit.by_user_id)
+        .where(EnrollmentAudit.subject_id == subject_id)
+        .order_by(EnrollmentAudit.created_at.desc())
+        .limit(100)
+    ).all()
+    return [{
+        "action": a.action,
+        "reason": a.reason,
+        "register_number": st.register_number,
+        "name": st.name,
+        "by": email,
+        "created_at": a.created_at.isoformat(),
+    } for a, st, email in rows]

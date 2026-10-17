@@ -63,9 +63,9 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
 
   Future<void> _addClass() async {
     final v = await promptFields(context, 'New class (current semester)',
-        ['Class name (e.g. S7 CSE-D)']);
+        ['Class name (e.g. S7 CSE-D)', 'Class advisor email (optional)']);
     if (v == null) return;
-    _create('classes', {'name': v[0]});
+    _create('classes', {'name': v[0], if (v[1].isNotEmpty) 'advisor_email': v[1]});
   }
 
   Future<void> _addTeacher() async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'admin_setup_screen.dart';
 import 'import_screen.dart';
+import 'rollover_screen.dart';
 
 class AdminToolsScreen extends StatelessWidget {
   const AdminToolsScreen({super.key});
@@ -32,6 +33,8 @@ class AdminToolsScreen extends StatelessWidget {
             Icons.groups, const ImportScreen(kind: 'students')),
         tile('Import subject selections', 'Who takes which subject, including electives',
             Icons.fact_check, const ImportScreen(kind: 'enrollments')),
+        tile('Semester rollover', 'Start a new semester, keep the old data',
+            Icons.event_repeat, const RolloverScreen()),
       ]),
     );
   }

@@ -9,7 +9,7 @@ from firebase_admin import credentials
 import glob
 import os
 from app.routers import imports
-
+from app.routers import classes
 
 if not firebase_admin._apps:
     _keys = glob.glob(
@@ -27,6 +27,8 @@ app.include_router(auth.router)
 app.include_router(subjects.router)
 app.include_router(feed.router)
 app.include_router(admin.router) 
+app.include_router(classes.router)
+
 @app.get("/")
 def read_root():
     return {"status": "EduNex Core System API Operational"}

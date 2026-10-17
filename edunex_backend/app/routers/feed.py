@@ -11,7 +11,7 @@ from app.core.access import (can_manage_subject, can_post_to_class, ensure_can_v
 from app.core.database import get_db
 from app.dependencies import get_current_user, require_teacher
 from app.models.academic import Notification, Post, Subject
-from app.models.college import ClassGroup
+from app.models.college import ClassGroup, ClassAdvisor
 
 router = APIRouter(prefix="/feed", tags=["feed"])
 
@@ -43,6 +43,31 @@ def get_feed(subject_id: UUID | None = None, user=Depends(get_current_user),
                 Post.subject_id.in_(visible_subjects(db, user, Subject.id)),
                 Post.class_id.in_(visible_class_ids(db, user))))
     return [post_out(p, db) for p in db.scalars(q).all()]
+
+
+@router.get("/targets")
+def post_targets(user=Depends(require_teacher), db: Session = Depends(get_db)):
+    teacher = get_teacher(db, user)
+    is_admin = bool(teacher and teacher.is_admin)
+
+    sq = select(Subject).order_by(Subject.code)
+    if not is_admin:
+        sq = sq.where(Subject.teacher_id == user.id)
+    subjects = db.scalars(sq).all()
+
+    if is_admin:
+        classes = db.scalars(select(ClassGroup).order_by(ClassGroup.name)).all()
+    else:
+        classes = db.scalars(
+            select(ClassGroup)
+            .where(ClassGroup.id.in_(
+                select(ClassAdvisor.class_id).where(ClassAdvisor.user_id == user.id)))
+            .order_by(ClassGroup.name)).all()
+
+    return {
+        "subjects": [{"id": str(s.id), "code": s.code, "name": s.name} for s in subjects],
+        "classes": [{"id": str(c.id), "name": c.name} for c in classes],
+    }
 
 
 class PostIn(BaseModel):

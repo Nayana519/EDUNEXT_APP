@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'choose_role_screen.dart';
 import 'main_shell.dart';
-import 'package:dio/dio.dart';
+import 'verify_email_screen.dart';
 
 class RoleGate extends StatefulWidget {
   const RoleGate({super.key});
@@ -25,14 +25,12 @@ class _RoleGateState extends State<RoleGate> {
   Future<void> _load() async {
     try {
       final me = await ApiService.getMe();
-      debugPrint('RoleGate: got user $me');
       if (!mounted) return;
       setState(() {
         _user = me;
         _loading = false;
       });
     } catch (e) {
-      debugPrint('RoleGate: error $e');
       if (!mounted) return;
       setState(() {
         _error = e.toString();
@@ -79,6 +77,10 @@ class _RoleGateState extends State<RoleGate> {
 
     final user = _user!;
     if (user['role'] == null) {
+      final fb = FirebaseAuth.instance.currentUser;
+      if (fb != null && !fb.emailVerified) {
+        return VerifyEmailScreen(onVerified: () => setState(() {}));
+      }
       return ChooseRoleScreen(onDone: (me) => setState(() => _user = me));
     }
     return MainShell(me: user);
