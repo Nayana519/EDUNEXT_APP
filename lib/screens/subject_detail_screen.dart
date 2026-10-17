@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../utils.dart';
 import '../widgets/feed_card.dart';
+import 'roster_screen.dart';
 
 class SubjectDetailScreen extends StatelessWidget {
   final Map<String, dynamic> subject;
@@ -22,10 +23,22 @@ class SubjectDetailScreen extends StatelessWidget {
             color: color,
             padding: EdgeInsets.fromLTRB(8, MediaQuery.of(context).padding.top + 4, 16, 20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-              ),
+            Row(children: [
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                ),
+                const Spacer(),
+                if (role == 'teacher')
+                  TextButton.icon(
+                    onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => RosterScreen(subject: subject))),
+                    icon: const Icon(Icons.groups, color: Colors.white),
+                    label: const Text('Students', style: TextStyle(color: Colors.white)),
+                  ),
+              ]),
               Padding(
                 padding: const EdgeInsets.only(left: 12),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

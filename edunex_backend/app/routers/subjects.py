@@ -1,7 +1,7 @@
 from uuid import UUID
-
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -87,3 +87,39 @@ def remove_student(subject_id: UUID, register_number: str,
                            reason=reason, by_user_id=user.id))
     db.commit()
     return {"status": "removed"}
+
+class JoinRequest(BaseModel):
+    code: str
+
+
+@router.post("/join", status_code=status.HTTP_201_CREATED)
+def student_join_by_code(
+    body: JoinRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if current_user.role != "student":
+        raise HTTPException(status_code=400, detail="Only student accounts can join classes.")
+
+    code = body.code.strip().upper()
+    matches = db.query(Subject).filter(func.upper(Subject.code) == code).all()
+    if not matches:
+        raise HTTPException(status_code=404, detail="No class found with that code.")
+    if len(matches) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail="More than one class uses this code. Ask your teacher for help.",
+        )
+
+    subject = matches[0]
+    already = (
+        db.query(Enrollment)
+        .filter(Enrollment.user_id == current_user.id, Enrollment.subject_id == subject.id)
+        .first()
+    )
+    if already:
+        raise HTTPException(status_code=400, detail="You are already in this class.")
+
+    db.add(Enrollment(user_id=current_user.id, subject_id=subject.id))
+    db.commit()
+    return {"status": "success", "message": f"Joined {subject.name}"}

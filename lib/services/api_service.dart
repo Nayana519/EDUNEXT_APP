@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:file_picker/file_picker.dart';
+
 
 class ApiService {
   // 10.0.2.2 = your PC, as seen from the Android emulator
@@ -7,8 +9,11 @@ class ApiService {
   receiveTimeout: const Duration(seconds: 20),))
     ..interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await FirebaseAuth.instance.currentUser?.getIdToken();
-        if (token != null) {
+        final user = FirebaseAuth.instance.currentUser;
+
+        if (user != null) {
+          final token = await user.getIdToken();
+
           options.headers['Authorization'] = 'Bearer $token';
         }
         handler.next(options);
@@ -40,6 +45,7 @@ static Future<void> uploadMaterial(String subjectId, String path, String name) a
   await _dio.post('/materials/upload', data: form);
 }
 
+
 static Future<List<dynamic>> getNotifications() async =>
     (await _dio.get('/notifications')).data;
 
@@ -53,8 +59,12 @@ static Future<void> createPost(
       data: {'subject_id': subjectId, 'title': title, 'body': body});
 }
 
-static Future<Map<String, dynamic>> register(String role) async =>
-    (await _dio.post('/auth/register', data: {'role': role})).data;
+static Future<Map<String, dynamic>> register(String role, {String? registerNumber}) async =>
+    (await _dio.post('/auth/register', data: {
+      'role': role,
+      if (registerNumber != null && registerNumber.isNotEmpty)
+        'register_number': registerNumber,
+    })).data;
 
 static Future<void> joinClass(String code) async {
   await _dio.post('/subjects/join', data: {'code': code});
@@ -63,4 +73,34 @@ static Future<void> joinClass(String code) async {
 static Future<void> createSubject(String code, String name, String color) async {
   await _dio.post('/subjects', data: {'code': code, 'name': name, 'color': color});
 }
+
+// ---- admin
+static Future<List<dynamic>> adminList(String what) async =>
+    (await _dio.get('/admin/$what')).data;
+
+static Future<Map<String, dynamic>> adminCreate(String what, Map<String, dynamic> body) async =>
+    (await _dio.post('/admin/$what', data: body)).data;
+
+static Future<Map<String, dynamic>> importPreview(String kind, String csvText) async =>
+    (await _dio.post('/admin/import/preview',
+        data: FormData.fromMap({'kind': kind, 'csv_text': csvText}))).data;
+
+static Future<Map<String, dynamic>> importConfirm(String batchId) async =>
+    (await _dio.post('/admin/import/$batchId/confirm')).data;
+
+// ---- teacher roster
+static Future<List<dynamic>> getRoster(String subjectId) async =>
+    (await _dio.get('/subjects/$subjectId/students')).data;
+
+static Future<void> addToRoster(String subjectId, String reg, String? reason) async {
+  await _dio.post('/subjects/$subjectId/students',
+      data: {'register_number': reg, 'reason': reason});
+}
+
+static Future<void> removeFromRoster(String subjectId, String reg, String reason) async {
+  await _dio.delete('/subjects/$subjectId/students/$reg',
+      queryParameters: {'reason': reason});
+}
+
+
 }

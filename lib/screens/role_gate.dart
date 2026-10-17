@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'choose_role_screen.dart';
 import 'main_shell.dart';
+import 'package:dio/dio.dart';
 
 class RoleGate extends StatefulWidget {
   const RoleGate({super.key});

@@ -5,7 +5,7 @@ from firebase_admin import auth as fb_auth
 from app.core.database import get_db
 from app.models.user import User
 
-async def get_current_user(
+def get_current_user(
     authorization: str = Header(...),
     db: Session = Depends(get_db),
 ) -> User:
@@ -17,7 +17,8 @@ async def get_current_user(
     # 2. Ask Firebase: is this a real, unexpired token?
     try:
         decoded = fb_auth.verify_id_token(token)
-    except Exception:
+    except Exception as e:
+        print("TOKEN ERROR:", repr(e))
         raise HTTPException(401, "Invalid or expired token")
 
     uid = decoded["uid"]
@@ -34,7 +35,7 @@ async def get_current_user(
     return user
 
 # A second dependency that only lets teachers through
-async def require_teacher(user: User = Depends(get_current_user)) -> User:
+def require_teacher(user: User = Depends(get_current_user)) -> User:
     if user.role != "teacher":
         raise HTTPException(403, "Teachers only")
     return user

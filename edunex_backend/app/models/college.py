@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -65,4 +65,16 @@ class EnrollmentAudit(Base):
     action: Mapped[str] = mapped_column(String(10))          # add / remove
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class ImportBatch(Base):
+    __tablename__ = "import_batches"
+    id: Mapped[uuid.UUID] = _pk()
+    kind: Mapped[str] = mapped_column(String(20))              # students | enrollments
+    semester_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("semesters.id"))
+    filename: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(12), default="preview")  # preview | confirmed
+    summary: Mapped[dict] = mapped_column(JSONB, default=dict)
+    plan: Mapped[list] = mapped_column(JSONB, default=list)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

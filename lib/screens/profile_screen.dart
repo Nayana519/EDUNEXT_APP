@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../widgets/edu_top_bar.dart';
 import 'help_screen.dart';
 import 'linked_classes_screen.dart';
+import 'admin_tools_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final Map<String, dynamic> me;
@@ -81,6 +82,12 @@ class ProfileScreen extends StatelessWidget {
         const SizedBox(height: 22),
         const Text('Settings', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         const SizedBox(height: 10),
+         if (me['is_admin'] == true)
+          _SettingsRow(
+            label: 'Admin tools',
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const AdminToolsScreen())),
+          ),
                 _SettingsRow(
           label: 'Notification preferences',
           onTap: () => ScaffoldMessenger.of(context).showSnackBar(

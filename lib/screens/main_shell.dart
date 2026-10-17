@@ -12,7 +12,6 @@ class MainShell extends StatefulWidget {
   @override
   State<MainShell> createState() => _MainShellState();
 }
-
 class _MainShellState extends State<MainShell> {
   int _index = 0;
   late final Future<Map<String, dynamic>> _me =

@@ -80,6 +80,13 @@ class _LinkedClassesScreenState extends State<LinkedClassesScreen> {
     final c = context.edu;
     return Scaffold(
       appBar: AppBar(title: const Text('Linked classes')),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: c.chalk,
+        foregroundColor: Colors.white,
+        onPressed: _add,
+        icon: const Icon(Icons.add),
+        label: Text(_isTeacher ? 'Add subject' : 'Join class'),
+      ),
       body: FutureBuilder<List<dynamic>>(
         future: _items,
         builder: (context, snap) {

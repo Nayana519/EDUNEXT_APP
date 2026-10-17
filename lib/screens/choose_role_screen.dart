@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
-
 class ChooseRoleScreen extends StatefulWidget {
   final void Function(Map<String, dynamic> me) onDone;
   const ChooseRoleScreen({super.key, required this.onDone});
@@ -14,17 +13,27 @@ class ChooseRoleScreen extends StatefulWidget {
 
 class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
   bool _busy = false;
+  final _reg = TextEditingController();
   String? _error;
 
   Future<void> _choose(String role) async {
+    if (role == 'student' && _reg.text.trim().isEmpty) {
+  setState(() => _error = 'Enter your register number first.');
+  return;
+  }
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final me = await ApiService.register(role);
+      final me = await ApiService.register(role, registerNumber: _reg.text.trim());
       if (mounted) widget.onDone(me);
     } on DioException catch (e) {
+      if (e is DioException) {
+        debugPrint('REQUEST URL: ${e.requestOptions.uri}');
+        debugPrint('STATUS: ${e.response?.statusCode}');
+        debugPrint('RESPONSE: ${e.response?.data}');
+      }
       final data = e.response?.data;
       final msg = data is Map ? data['detail']?.toString() : null;
       final slow = e.type == DioExceptionType.connectionTimeout ||
@@ -93,9 +102,15 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
                     fontSize: 24,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            Text('Tell us who you are. You choose this only once.',
-                textAlign: TextAlign.center, style: TextStyle(color: c.slate)),
-            const SizedBox(height: 28),
+            TextField(
+                controller: _reg,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Register number (students)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
             _card('student', "I'm a student",
                 'Class feed, materials, assignments', Icons.school),
             _card('teacher', "I'm a teacher",

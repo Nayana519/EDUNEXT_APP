@@ -20,7 +20,11 @@ def _save(db: Session):
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, "That record already exists.")
-
+def _current_semester(db: Session) -> Semester:
+    sem = db.scalars(select(Semester).where(Semester.is_current.is_(True))).first()
+    if sem is None:
+        raise HTTPException(400, "Create a semester first.")
+    return sem
 
 # ---------- semesters ----------
 class SemesterIn(BaseModel):
@@ -50,14 +54,15 @@ def list_semesters(db: Session = Depends(get_db), admin=Depends(require_admin)):
 # ---------- classes ----------
 class ClassIn(BaseModel):
     name: str
-    semester_id: UUID
+    semester_id: UUID | None = None
     department: str = "CSE"
 
 
 @router.post("/classes", status_code=201)
 def create_class(body: ClassIn, db: Session = Depends(get_db), admin=Depends(require_admin)):
+    sem_id = body.semester_id or _current_semester(db).id
     c = ClassGroup(name=body.name.strip().upper(), department=body.department.strip(),
-                   semester_id=body.semester_id)
+                   semester_id=sem_id)
     db.add(c)
     _save(db)
     return {"id": str(c.id), "name": c.name}
@@ -128,10 +133,11 @@ def add_student(body: StudentIn, db: Session = Depends(get_db), admin=Depends(re
 class SubjectIn(BaseModel):
     code: str
     name: str
-    semester_id: UUID
     teacher_email: str
-    kind: str = "common"          # common | elective
+    semester_id: UUID | None = None
+    kind: str = "common"              # common | elective
     class_id: UUID | None = None
+    class_name: str | None = None     # easier than class_id
     color: str = "#2F6F4E"
 
 
@@ -140,7 +146,17 @@ def create_subject(body: SubjectIn, db: Session = Depends(get_db), admin=Depends
     kind = body.kind.strip().lower()
     if kind not in ("common", "elective"):
         raise HTTPException(400, "Kind must be 'common' or 'elective'.")
-    if kind == "common" and body.class_id is None:
+
+    sem_id = body.semester_id or _current_semester(db).id
+    class_id = body.class_id
+    if class_id is None and body.class_name and body.class_name.strip():
+        cg = db.scalars(select(ClassGroup).where(
+            ClassGroup.semester_id == sem_id,
+            func.upper(ClassGroup.name) == body.class_name.strip().upper())).first()
+        if cg is None:
+            raise HTTPException(404, f"Class '{body.class_name}' not found in this semester.")
+        class_id = cg.id
+    if kind == "common" and class_id is None:
         raise HTTPException(400, "A common subject needs a class.")
 
     teacher = db.scalars(select(Teacher).where(
@@ -151,12 +167,12 @@ def create_subject(body: SubjectIn, db: Session = Depends(get_db), admin=Depends
         raise HTTPException(400, "That teacher must sign in to the app once first.")
 
     subject = Subject(code=body.code.strip().upper(), name=body.name.strip(), color=body.color,
-                      teacher_id=teacher.user_id, semester_id=body.semester_id,
-                      class_id=body.class_id, kind=kind)
+                      teacher_id=teacher.user_id, semester_id=sem_id,
+                      class_id=class_id, kind=kind)
     db.add(subject)
     db.flush()
     added = 0
     if kind == "common":
-        added = enroll_class_in_common_subjects(db, body.class_id, by_user_id=admin.id)
+        added = enroll_class_in_common_subjects(db, class_id, by_user_id=admin.id)
     db.commit()
     return {"id": str(subject.id), "students_enrolled": added}
