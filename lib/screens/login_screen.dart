@@ -40,7 +40,22 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() => _errorMessage = 'Type your email above first.');
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('If an account exists, a reset link was sent to $email')));
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) setState(() => _errorMessage = e.message ?? 'Could not send the email.');
+    }
+  }
   @override
   void dispose() {
     _emailController.dispose();
@@ -65,6 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Icon(Icons.school, color: c.onInk, size: 30),
               ),
               const SizedBox(height: 16),
+              TextButton(onPressed: _forgotPassword, child: const Text('Forgot password?')),
               const Text('EduNex',
                   style: TextStyle(
                       fontFamily: 'serif',

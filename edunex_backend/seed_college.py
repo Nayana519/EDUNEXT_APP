@@ -27,7 +27,7 @@ if db.scalars(select(Semester)).first():
 
 admin_user.role = "teacher"
 student_user.role = "student"
-db.add(Teacher(email=admin_email, name="Admin Teacher", is_admin=True, user_id=admin_user.id))
+db.add(Teacher(email=admin_email, name="Admin", is_admin=True, user_id=admin_user.id))
 
 sem = Semester(academic_year="2026-27", name="S7", is_current=True)
 db.add(sem)
